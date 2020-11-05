@@ -47,7 +47,9 @@ def accuracy(predictions, targets):
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
+    
+    accuracy = (np.argmax(predictions, 1) == np.argmax(targets, 1)).mean()
+
     ########################
     # END OF YOUR CODE    #
     #######################
@@ -78,7 +80,75 @@ def train():
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
+    
+    dd = FLAGS.data_dir
+    sm = FLAGS.max_steps
+    lr = FLAGS.learning_rate
+    sb = FLAGS.batch_size
+    fe = FLAGS.eval_freq
+
+    cifar10 = cifar10_utils.get_cifar10(dd)
+
+    dnn_inputs = cifar10['test'].images[0].size
+    dnn_classes = cifar10['test'].labels[0].size
+
+    dnn = MLP(dnn_inputs, dnn_hidden_units, dnn_classes)
+    ce = CrossEntropyModule()
+
+    losses = []
+    loss_steps = []
+    accuracies = []
+    accuracy_steps = []
+
+    for step in range(sm):
+        inputs, targets = cifar10['train'].next_batch(sb)
+
+        # Preprocessing
+
+        inputs = inputs.reshape(sb, dnn_inputs)
+
+        # Forward pass
+        predictions = dnn.forward(inputs)
+        loss = ce.forward(predictions, targets)
+
+        # Calculate gradients
+        dnn.backward(ce.backward(predictions, targets))
+
+        # Evaluate
+        losses.append(loss)
+        loss_steps.append(step)
+        if step % fe == 0 or sm - step == 1:
+            acc = accuracy(predictions, targets)
+            accuracies.append(acc)
+            accuracy_steps.append(step)
+            print(f"{step/sm*100:3.0f}%\tLoss {loss:.3f}\tAccuracy {acc:.3f}")
+
+        # Update parameters
+        for layer in dnn.layers:
+            try:
+                for var, grad in layer.grads.items():
+                    layer.params[var] -= lr * grad
+
+            except AttributeError:
+                pass
+
+
+    try:
+        from matplotlib import pyplot as plt
+
+        plt.plot(loss_steps, losses, label="Loss")
+        plt.plot(accuracy_steps, accuracies, label="Accuracy")
+
+        plt.title("NumPy MLP")
+        plt.xlabel("Step")
+        plt.legend()
+        plt.xlim(loss_steps[0], loss_steps[-1])
+
+        plt.show()
+
+    except ModuleNotFoundError:
+        pass    
+
     ########################
     # END OF YOUR CODE    #
     #######################

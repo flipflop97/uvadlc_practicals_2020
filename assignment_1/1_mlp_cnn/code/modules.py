@@ -29,7 +29,14 @@ class LinearModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        self.params = dict()
+        self.grads = dict()
+
+        self.params['weight'] = np.random.normal(0, 0.0001, (out_features, in_features))
+        self.params['bias'] = np.zeros((1, out_features))
+
+        self.grads['weight'] = np.zeros((out_features, in_features))
+        self.grads['bias'] = np.zeros((1, out_features))
         
         ########################
         # END OF YOUR CODE    #
@@ -54,7 +61,12 @@ class LinearModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        self.input = x
+
+        w = self.params['weight']
+        b = self.params['bias']
+
+        out = x @ w.T + b
         
         ########################
         # END OF YOUR CODE    #
@@ -80,7 +92,12 @@ class LinearModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        w = self.params['weight']
+        x = self.input
+
+        self.grads['weight'] = dout.T @ x
+        self.grads['bias'] = dout.T.sum(1)
+        dx = dout @ w
         
         ########################
         # END OF YOUR CODE    #
@@ -113,7 +130,10 @@ class SoftMaxModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        b = x.max(1, keepdims=True)
+        out = np.exp(x-b) / np.exp(x-b).sum(1, keepdims=True)
+
+        self.output = out
         
         ########################
         # END OF YOUR CODE    #
@@ -137,7 +157,9 @@ class SoftMaxModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        y = self.output
+
+        dx = dout * y - np.einsum('in, in, ij -> ij', dout, y, y)
         
         ########################
         # END OF YOUR CODE    #
@@ -168,7 +190,9 @@ class CrossEntropyModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        s, n = x.shape
+
+        out = - (y * np.log(x)).sum() / s
         
         ########################
         # END OF YOUR CODE    #
@@ -193,7 +217,9 @@ class CrossEntropyModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        s, n = x.shape
+
+        dx = - (y / x) / s
         
         ########################
         # END OF YOUR CODE    #
@@ -225,8 +251,10 @@ class ELUModule(object):
         # PUT YOUR CODE HERE  #
         #######################
         
-        raise NotImplementedError
-        
+        self.input = x
+
+        out = np.where(x >= 0, x, np.exp(x) - 1)
+
         ########################
         # END OF YOUR CODE    #
         #######################
@@ -249,7 +277,9 @@ class ELUModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        x = self.input
+
+        dx = dout * np.where(x >= 0, 1, np.exp(x))
 
         ########################
         # END OF YOUR CODE    #
