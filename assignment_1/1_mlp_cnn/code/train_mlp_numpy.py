@@ -143,8 +143,9 @@ def train():
         plt.xlabel("Step")
         plt.legend()
         plt.xlim(loss_steps[0], loss_steps[-1])
+        plt.tight_layout()
 
-        plt.show()
+        plt.savefig("plot_numpy_mlp.png", dpi=400)
 
     except ModuleNotFoundError:
         pass    
