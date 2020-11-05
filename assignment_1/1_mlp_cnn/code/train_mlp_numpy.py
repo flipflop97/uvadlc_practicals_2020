@@ -92,6 +92,11 @@ def train():
     dnn_inputs = cifar10['test'].images[0].size
     dnn_classes = cifar10['test'].labels[0].size
 
+    st = cifar10['test'].labels.shape[0]
+
+    x_test, t_test = cifar10['test'].images, cifar10['test'].labels
+    x_test = x_test.reshape(st, dnn_inputs)
+
     dnn = MLP(dnn_inputs, dnn_hidden_units, dnn_classes)
     ce = CrossEntropyModule()
 
@@ -101,26 +106,28 @@ def train():
     accuracy_steps = []
 
     for step in range(sm):
-        inputs, targets = cifar10['train'].next_batch(sb)
-
         # Preprocessing
-
-        inputs = inputs.reshape(sb, dnn_inputs)
+        x_train, t_train = cifar10['train'].next_batch(sb)
+        x_train = x_train.reshape(sb, dnn_inputs)
 
         # Forward pass
-        predictions = dnn.forward(inputs)
-        loss = ce.forward(predictions, targets)
+        y_train = dnn.forward(x_train)
+        loss = ce.forward(y_train, t_train)
 
         # Calculate gradients
-        dnn.backward(ce.backward(predictions, targets))
+        dnn.backward(ce.backward(y_train, t_train))
 
         # Evaluate
         losses.append(loss)
         loss_steps.append(step)
+
         if step % fe == 0 or sm - step == 1:
-            acc = accuracy(predictions, targets)
+            y_test = dnn.forward(x_test)
+            acc = accuracy(y_test, t_test)
+
             accuracies.append(acc)
             accuracy_steps.append(step)
+
             print(f"{step/sm*100:3.0f}%\tLoss {loss:.3f}\tAccuracy {acc:.3f}")
 
         # Update parameters
@@ -136,19 +143,25 @@ def train():
     try:
         from matplotlib import pyplot as plt
 
-        plt.plot(loss_steps, losses, label="Loss")
-        plt.plot(accuracy_steps, accuracies, label="Accuracy")
+        plt.figure(figsize=[7.2, 2.4])
 
-        plt.title("NumPy MLP")
+        plt.subplot(1, 2, 1)
+        plt.plot(loss_steps, losses)
         plt.xlabel("Step")
-        plt.legend()
+        plt.ylabel("Loss")
         plt.xlim(loss_steps[0], loss_steps[-1])
-        plt.tight_layout()
 
-        plt.savefig("plot_numpy_mlp.png", dpi=400)
+        plt.subplot(1, 2, 2)
+        plt.plot(accuracy_steps, accuracies)
+        plt.xlabel("Step")
+        plt.ylabel("Accuracy")
+        plt.xlim(accuracy_steps[0], accuracy_steps[-1])
+
+        plt.tight_layout()
+        plt.savefig("plot_mlp_numpy.png", dpi=400)
 
     except ModuleNotFoundError:
-        pass    
+        pass
 
     ########################
     # END OF YOUR CODE    #

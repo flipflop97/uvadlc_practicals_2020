@@ -37,7 +37,21 @@ class MLP(nn.Module):
         ########################
         # PUT YOUR CODE HERE  #
         #######################
-        raise NotImplementedError
+        
+        super(MLP, self).__init__()
+
+        layers = []
+
+        n_prev = n_inputs
+        for n_current in n_hidden:
+          layers.append(nn.Linear(n_prev, n_current))
+          layers.append(nn.ELU())
+          n_prev = n_current
+
+        layers.append(nn.Linear(n_prev, n_classes))
+
+        self.model = nn.Sequential(*layers)
+
         ########################
         # END OF YOUR CODE    #
         #######################
@@ -59,7 +73,9 @@ class MLP(nn.Module):
         ########################
         # PUT YOUR CODE HERE  #
         #######################
-        raise NotImplementedError
+        
+        out = self.model.forward(x)
+
         ########################
         # END OF YOUR CODE    #
         #######################
