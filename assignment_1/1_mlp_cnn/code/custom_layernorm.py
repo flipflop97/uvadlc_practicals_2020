@@ -42,7 +42,7 @@ class CustomLayerNormAutograd(nn.Module):
         self.n_neurons = n_neurons
         self.eps = eps
 
-        self.gamma = nn.Parameter(torch.normal(torch.zeros(1, n_neurons), 1 / n_neurons))
+        self.gamma = nn.Parameter(torch.ones(1, n_neurons))
         self.beta = nn.Parameter(torch.zeros(1, n_neurons))
         
         ########################
@@ -82,7 +82,7 @@ class CustomLayerNormAutograd(nn.Module):
         var = input.var(1, unbiased=False, keepdims=True)
 
         norm = (input - mean) / (var + eps).sqrt()
-        out = gamma * input + beta
+        out = gamma * norm + beta
 
         ########################
         # END OF YOUR CODE    #
