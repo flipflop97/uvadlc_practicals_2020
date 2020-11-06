@@ -39,7 +39,11 @@ class CustomLayerNormAutograd(nn.Module):
         # PUT YOUR CODE HERE  #
         #######################
         
-        raise NotImplementedError
+        self.n_neurons = n_neurons
+        self.eps = eps
+
+        self.gamma = nn.Parameter(torch.normal(torch.zeros(1, n_neurons), 1 / n_neurons))
+        self.beta = nn.Parameter(torch.zeros(1, n_neurons))
         
         ########################
         # END OF YOUR CODE    #
@@ -64,7 +68,21 @@ class CustomLayerNormAutograd(nn.Module):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        n_neurons = self.n_neurons
+        eps = self.eps
+        gamma = self.gamma
+        beta = self.beta
+
+        s, m = input.shape
+
+        if m != n_neurons:
+          raise ValueError(f"Input should be of shape (s, {n_neurons}) but is of shape (s, {m})")
+
+        mean = input.mean(1, keepdims=True)
+        var = input.var(1, unbiased=False, keepdims=True)
+
+        norm = (input - mean) / (var + eps).sqrt()
+        out = gamma * input + beta
 
         ########################
         # END OF YOUR CODE    #
