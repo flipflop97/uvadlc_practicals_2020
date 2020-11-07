@@ -136,8 +136,18 @@ class CustomLayerNormManualFunction(torch.autograd.Function):
         ########################
         # PUT YOUR CODE HERE  #
         #######################
-        
-        raise NotImplementedError
+
+        gam = gamma[:, None]
+        bet = beta[:, None]
+
+        mean = input.mean(1, keepdims=True)
+        var = input.var(1, unbiased=False, keepdims=True)
+
+        norm = (input - mean) / (var + eps).sqrt()
+        out = gam.T * norm + bet.T
+
+        ctx.eps = eps
+        ctx.save_for_backward(input, var, norm, gamma)
 
         ########################
         # END OF YOUR CODE    #
@@ -166,8 +176,34 @@ class CustomLayerNormManualFunction(torch.autograd.Function):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
-        
+        eps = ctx.eps
+        input, var, norm, gamma = ctx.saved_tensors
+        s, m = input.shape
+
+        do_input, do_gamma, do_beta = ctx.needs_input_grad
+
+        if do_input:
+          gam = gamma[:, None]
+
+          a = m * grad_output * gam.T
+          b = grad_output @ gam
+          c = grad_output * norm @ gam * norm
+          d = m * torch.sqrt(var + eps)
+
+          grad_input = (a - b - c) / d
+        else:
+          grad_input = None
+
+        if do_gamma:
+          grad_gamma = (grad_output * norm).sum(0)
+        else:
+          grad_gamma = None
+
+        if do_beta:
+          grad_beta = grad_output.sum(0)
+        else:
+          grad_beta = None
+
         ########################
         # END OF YOUR CODE    #
         #######################
@@ -205,7 +241,11 @@ class CustomLayerNormManualModule(nn.Module):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        self.n_neurons = n_neurons
+        self.eps = eps
+
+        self.gamma = nn.Parameter(torch.ones(n_neurons))
+        self.beta = nn.Parameter(torch.zeros(n_neurons))
         
         ########################
         # END OF YOUR CODE    #
@@ -230,7 +270,18 @@ class CustomLayerNormManualModule(nn.Module):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        n_neurons = self.n_neurons
+        eps = self.eps
+        gamma = self.gamma
+        beta = self.beta
+
+        s, m = input.shape
+
+        if m != n_neurons:
+          raise ValueError(f"Input should be of shape (s, {n_neurons}) but is of shape (s, {m})")
+
+        layernorm = CustomLayerNormManualFunction.apply
+        out = layernorm(input, gamma, beta, eps)
         
         ########################
         # END OF YOUR CODE    #
