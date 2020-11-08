@@ -45,10 +45,12 @@ class MLP(nn.Module):
         n_prev = n_inputs
         for n_current in n_hidden:
           layers.append(nn.Linear(n_prev, n_current))
+          layers.append(nn.BatchNorm1d(n_current))
           layers.append(nn.ELU())
           n_prev = n_current
 
         layers.append(nn.Linear(n_prev, n_classes))
+        # layers.append(nn.BatchNorm1d(n_classes))
 
         self.model = nn.Sequential(*layers)
 

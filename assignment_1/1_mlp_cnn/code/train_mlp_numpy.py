@@ -128,7 +128,7 @@ def train():
             accuracies.append(acc)
             accuracy_steps.append(step)
 
-            print(f"{step/sm*100:3.0f}%\tLoss {loss:.3f}\tAccuracy {acc:.3f}")
+            print(f"{step/sm*100:3.0f}% - Loss {loss:.3f} - Accuracy {acc:.3f}")
 
         # Update parameters
         for layer in dnn.layers:

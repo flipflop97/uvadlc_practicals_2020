@@ -106,12 +106,16 @@ def train():
     dnn = MLP(dnn_inputs, dnn_hidden_units, dnn_classes)
     ce = nn.CrossEntropyLoss()
 
-    optim = torch.optim.SGD(dnn.parameters(), lr=lr)
+    optim = torch.optim.Adam(dnn.parameters(), lr=lr)
 
     losses = []
     loss_steps = []
     accuracies = []
     accuracy_steps = []
+
+    acc_best = 0
+    loss_best = 0
+    step_best = 0
 
     for step in range(sm):
         optim.zero_grad()
@@ -141,7 +145,12 @@ def train():
                 accuracies.append(acc)
                 accuracy_steps.append(step)
 
-                print(f"{step/sm*100:3.0f}%\tLoss {loss:.3f}\tAccuracy {acc:.3f}")
+                if acc > acc_best:
+                    acc_best = acc
+                    loss_best = loss
+                    step_best = step
+
+                print(f"{step/sm*100:3.0f}% - Loss {loss:.3f} - Accuracy {acc:.3f} - Best {acc_best:.3f}")
 
         # Update parameters
         optim.step()
@@ -154,12 +163,16 @@ def train():
 
         plt.subplot(1, 2, 1)
         plt.plot(loss_steps, losses)
+        plt.axvline(step_best, c="black", alpha=0.3, linewidth=1)
+        plt.axhline(loss_best, c="black", alpha=0.3, linewidth=1)
         plt.xlabel("Step")
         plt.ylabel("Loss")
         plt.xlim(loss_steps[0], loss_steps[-1])
 
         plt.subplot(1, 2, 2)
         plt.plot(accuracy_steps, accuracies)
+        plt.axvline(step_best, c="black", alpha=0.3, linewidth=1)
+        plt.axhline(acc_best, c="black", alpha=0.3, linewidth=1)
         plt.xlabel("Step")
         plt.ylabel("Accuracy")
         plt.xlim(accuracy_steps[0], accuracy_steps[-1])
