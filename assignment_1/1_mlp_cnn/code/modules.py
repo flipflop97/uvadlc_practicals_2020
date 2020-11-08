@@ -159,7 +159,7 @@ class SoftMaxModule(object):
 
         y = self.output
 
-        dx = dout * y - np.einsum('in, in, ij -> ij', dout, y, y)
+        dx = (dout - (dout * y).sum(1, keepdims=True)) * y
         
         ########################
         # END OF YOUR CODE    #
