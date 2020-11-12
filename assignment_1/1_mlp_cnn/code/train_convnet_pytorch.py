@@ -82,6 +82,8 @@ def train():
     sb = FLAGS.batch_size
     fe = FLAGS.eval_freq
 
+    test_batches = 8
+
     cifar10 = cifar10_utils.get_cifar10(dd)
 
     dnn_inputs = cifar10['test'].images[0].shape[0]
@@ -90,8 +92,8 @@ def train():
     st = cifar10['test'].labels.shape[0]
 
     x_test, t_test = cifar10['test'].images, cifar10['test'].labels
-    x_test = torch.tensor(x_test)
-    t_test = torch.tensor(t_test)
+    x_test_list = [torch.tensor(x) for x in np.split(x_test, test_batches)]
+    t_test_list = [torch.tensor(t) for t in np.split(t_test, test_batches)]
 
     dnn = ConvNet(dnn_inputs, dnn_classes)
     ce = nn.CrossEntropyLoss()
@@ -123,13 +125,16 @@ def train():
         loss.backward()
 
         # Evaluate
-        losses.append(loss)
+        losses.append(loss.detach())
         loss_steps.append(step)
 
         if step % fe == 0 or sm - step == 1:
             with torch.no_grad():
-                y_test = dnn.forward(x_test)
-                acc = accuracy(y_test, t_test)
+                acc = 0                
+                for i in range(test_batches):
+                    y_test_i = dnn.forward(x_test_list[i])
+                    acc += accuracy(y_test_i, t_test_list[i]).detach()
+                acc /= test_batches
 
                 accuracies.append(acc)
                 accuracy_steps.append(step)
@@ -140,6 +145,7 @@ def train():
                     step_best = step
 
                 print(f"{step/sm*100:3.0f}% - Loss {loss:.3f} - Accuracy {acc:.3f} - Best {acc_best:.3f}")
+
 
         # Update parameters
         optim.step()
