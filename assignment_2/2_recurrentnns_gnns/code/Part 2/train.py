@@ -44,6 +44,8 @@ def train(config):
     dataset = TextDataset(config.txt_file, config.seq_length)
     data_loader = DataLoader(dataset, config.batch_size)
 
+    max_steps = min(config.train_steps, len(data_loader) - 1)
+
     # Initialize the model that we are going to use
     model = TextGenerationModel(
         config.batch_size,
@@ -58,6 +60,9 @@ def train(config):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), config.learning_rate)
 
+    accuracy_list = []
+    loss_list = []
+
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -71,39 +76,46 @@ def train(config):
         batch_predictions, _ = model.forward(batch_inputs)
 
         loss = criterion(batch_predictions, batch_targets)
-        accuracy = (batch_predictions.argmax(1) == batch_targets).float().mean()
+        accuracy = (batch_predictions.detach().argmax(1) == batch_targets).float().mean()
 
         loss.backward()
         optimizer.step()
+
+        accuracy_list.append(accuracy.item())
+        loss_list.append(loss.item())
 
         # Just for time measurement
         t2 = time.time()
         examples_per_second = config.batch_size/float(t2-t1)
 
-        if (step + 1) % config.print_every == 0:
+        if step % config.print_every == 0 or step == max_steps:
             print(
                 "[{}] Train Step {:04d}/{:04d}, "
                 "Batch Size = {}, Examples/Sec = {:.2f}, "
                 "Accuracy = {:.2f}, Loss = {:.3f}".format(
                     datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    step, config.train_steps, config.batch_size,
+                    step, max_steps, config.batch_size,
                     examples_per_second, accuracy, loss
                 )
             )
 
-        if (step + 1) % config.sample_every == 0:
+        if step % config.sample_every == 0 or step == max_steps:
             with torch.no_grad():
                 sample_hidden = None
                 sample_inputs = torch.randint(dataset.vocab_size, (5, 1))
                 sentences = sample_inputs.clone()
 
-                for i in range(100):
+                for i in range(69):
                     sample_predictions, sample_hidden = model.forward(sample_inputs, sample_hidden)
-                    sample_inputs = sample_predictions.argmax(1)
+                    if config.temp:
+                        sample_probabilities = torch.softmax(config.temp * sample_predictions, 1)
+                        sample_inputs = torch.multinomial(sample_probabilities.squeeze(), 1, True)
+                    else:
+                        sample_inputs = sample_predictions.argmax(1)
                     sentences = torch.hstack((sentences, sample_inputs))
 
                 for sentence in sentences:
-                    print(dataset.convert_to_string(sentence.tolist()))     
+                    print(dataset.convert_to_string(sentence.tolist()).replace("\n", "|"))  
 
 
         if step == config.train_steps:
@@ -111,6 +123,7 @@ def train(config):
 
     print('Done training.')
 
+    return accuracy_list, loss_list
 
 ###############################################################################
 ###############################################################################
@@ -160,6 +173,7 @@ if __name__ == "__main__":
                         help="Device to run the model on.")
 
     # If needed/wanted, feel free to add more arguments
+    parser.add_argument('--temp', type=float, default=None, help='Temperature of random sampling')
 
     config = parser.parse_args()
 
