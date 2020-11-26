@@ -44,9 +44,8 @@ import numpy as np
 
 
 def train(config):
-    np.random.seed(0)
-    torch.manual_seed(0)
-
+    # np.random.seed(0)
+    # torch.manual_seed(0)
 
     # Initialize the device which to run the model on
     device = torch.device(config.device)
@@ -122,6 +121,9 @@ def train(config):
     loss_function = torch.nn.NLLLoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
+    accuracy_list = []
+    loss_list = []
+
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -150,25 +152,27 @@ def train(config):
 
         optimizer.step()
 
-        predictions = torch.argmax(log_probs, dim=1)
+        predictions = torch.argmax(log_probs.detach(), dim=1)
         correct = (predictions == batch_targets).sum().item()
         accuracy = correct / log_probs.size(0)
 
-        # print(predictions[0, ...], batch_targets[0, ...])
+        accuracy_list.append(accuracy)
+        loss_list.append(loss.item())
 
         # Just for time measurement
         t2 = time.time()
         examples_per_second = config.batch_size/float(t2-t1)
 
-        if step % 60 == 0:
-
-            print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, \
-                   Examples/Sec = {:.2f}, "
-                  "Accuracy = {:.2f}, Loss = {:.3f}".format(
-                    datetime.now().strftime("%Y-%m-%d %H:%M"), step,
-                    config.train_steps, config.batch_size, examples_per_second,
-                    accuracy, loss
-                    ))
+        if step % 10 == 0:
+            print(
+                "[{}] Train Step {:04d}/{:04d}, "
+                "Batch Size = {}, Examples/Sec = {:.2f}, "
+                "Accuracy = {:.2f}, Loss = {:.3f}".format(
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    step, config.train_steps, config.batch_size,
+                    examples_per_second, accuracy, loss
+                )
+            )
 
         # Check if training is finished
         if step == config.train_steps:
@@ -177,8 +181,11 @@ def train(config):
             break
 
     print('Done training.')
+
     ###########################################################################
     ###########################################################################
+
+    return accuracy_list, loss_list
 
 
 if __name__ == "__main__":

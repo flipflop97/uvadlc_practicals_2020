@@ -25,6 +25,7 @@ import argparse
 import numpy as np
 
 import torch
+from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
@@ -40,50 +41,72 @@ def train(config):
     device = torch.device(config.device)
 
     # Initialize the dataset and data loader (note the +1)
-    dataset = TextDataset(...)  # fixme
+    dataset = TextDataset(config.txt_file, config.seq_length)
     data_loader = DataLoader(dataset, config.batch_size)
 
     # Initialize the model that we are going to use
-    model = TextGenerationModel(...)  # FIXME
+    model = TextGenerationModel(
+        config.batch_size,
+        config.seq_length,
+        dataset.vocab_size,
+        config.lstm_num_hidden,
+        config.lstm_num_layers,
+        device
+    )
 
     # Setup the loss and optimizer
-    criterion = None  # FIXME
-    optimizer = None  # FIXME
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), config.learning_rate)
 
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
         t1 = time.time()
 
-        #######################################################
-        # Add more code here ...
-        #######################################################
+        optimizer.zero_grad()
 
-        loss = np.inf   # fixme
-        accuracy = 0.0  # fixme
+        batch_inputs = torch.stack(batch_inputs).T   # (t×[b]) -> (b×t)
+        batch_targets = torch.stack(batch_targets).T # (t×[b]) -> (b×t)
+
+        batch_predictions, _ = model.forward(batch_inputs)
+
+        loss = criterion(batch_predictions, batch_targets)
+        accuracy = (batch_predictions.argmax(1) == batch_targets).float().mean()
+
+        loss.backward()
+        optimizer.step()
 
         # Just for time measurement
         t2 = time.time()
         examples_per_second = config.batch_size/float(t2-t1)
 
         if (step + 1) % config.print_every == 0:
-
-            print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, \
-                    Examples/Sec = {:.2f}, "
-                  "Accuracy = {:.2f}, Loss = {:.3f}".format(
-                    datetime.now().strftime("%Y-%m-%d %H:%M"), step,
-                    config.train_steps, config.batch_size, examples_per_second,
-                    accuracy, loss
-                    ))
+            print(
+                "[{}] Train Step {:04d}/{:04d}, "
+                "Batch Size = {}, Examples/Sec = {:.2f}, "
+                "Accuracy = {:.2f}, Loss = {:.3f}".format(
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    step, config.train_steps, config.batch_size,
+                    examples_per_second, accuracy, loss
+                )
+            )
 
         if (step + 1) % config.sample_every == 0:
-            # Generate some sentences by sampling from the model
-            pass
+            with torch.no_grad():
+                sample_hidden = None
+                sample_inputs = torch.randint(dataset.vocab_size, (5, 1))
+                sentences = sample_inputs.clone()
+
+                for i in range(100):
+                    sample_predictions, sample_hidden = model.forward(sample_inputs, sample_hidden)
+                    sample_inputs = sample_predictions.argmax(1)
+                    sentences = torch.hstack((sentences, sample_inputs))
+
+                for sentence in sentences:
+                    print(dataset.convert_to_string(sentence.tolist()))     
+
 
         if step == config.train_steps:
-            # If you receive a PyTorch data-loader error,
-            # check this bug report:
-            # https://github.com/pytorch/pytorch/pull/9655
             break
 
     print('Done training.')
