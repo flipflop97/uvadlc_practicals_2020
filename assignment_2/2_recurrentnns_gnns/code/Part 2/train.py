@@ -101,6 +101,7 @@ def train(config):
 
         if step % config.sample_every == 0 or step == max_steps:
             with torch.no_grad():
+                # Random first character
                 sample_hidden = None
                 sample_inputs = torch.randint(dataset.vocab_size, (5, 1))
                 sentences = sample_inputs.clone()
@@ -108,14 +109,37 @@ def train(config):
                 for i in range(69):
                     sample_predictions, sample_hidden = model.forward(sample_inputs, sample_hidden)
                     if config.temp:
-                        sample_probabilities = torch.softmax(config.temp * sample_predictions, 1)
-                        sample_inputs = torch.multinomial(sample_probabilities.squeeze(), 1, True)
+                        sample_probabilities = torch.softmax(config.temp * sample_predictions, 1)[:,:,0]
+                        sample_inputs = torch.multinomial(sample_probabilities, 1, True)
                     else:
                         sample_inputs = sample_predictions.argmax(1)
                     sentences = torch.hstack((sentences, sample_inputs))
 
                 for sentence in sentences:
-                    print(dataset.convert_to_string(sentence.tolist()).replace("\n", "|"))  
+                    print(dataset.convert_to_string(sentence.tolist()).replace("\n", "|"))
+
+                # Sentences from book
+                sample_hidden = None
+                sample_inputs = torch.tensor([
+                    [dataset._char_to_ix[c] for c in "Tijdens mijn verblijf op deze "],
+                    [dataset._char_to_ix[c] for c in "Ik vond niet minder dan 12 ver"],
+                    [dataset._char_to_ix[c] for c in "Het eerst bezocht ik het woud,"],
+                    [dataset._char_to_ix[c] for c in "Op mijne wandelingen stak ik m"],
+                    [dataset._char_to_ix[c] for c in "Tot besluit schijnt het mij to"]
+                ])
+                sentences = sample_inputs.clone()
+
+                for i in range(40):
+                    sample_predictions, sample_hidden = model.forward(sample_inputs, sample_hidden)
+                    if config.temp:
+                        sample_probabilities = torch.softmax(config.temp * sample_predictions, 1)[:,:,0]
+                        sample_inputs = torch.multinomial(sample_probabilities, 1, True)
+                    else:
+                        sample_inputs = sample_predictions.argmax(1)
+                    sentences = torch.hstack((sentences, sample_inputs))
+
+                for sentence in sentences:
+                    print(dataset.convert_to_string(sentence.tolist()).replace("\n", "|"))
 
 
         if step == config.train_steps:
