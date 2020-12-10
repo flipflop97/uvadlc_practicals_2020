@@ -36,7 +36,22 @@ class MLPEncoder(nn.Module):
         # For an intial architecture, you can use a sequence of linear layers and ReLU activations.
         # Feel free to experiment with the architecture yourself, but the one specified here is 
         # sufficient for the assignment.
-        raise NotImplementedError
+
+        # Note: code largely copied from assignment_1/mlp_pytorch.py
+
+        layers = [nn.Flatten()]
+
+        dim_prev = input_dim
+        for dim_current in hidden_dims:
+            layers.append(nn.Linear(dim_prev, dim_current))
+            layers.append(nn.ReLU())
+            dim_prev = dim_current
+
+        self.q = nn.Sequential(*layers)
+
+        self.fm = nn.Linear(dim_prev, z_dim)
+        self.fs = nn.Linear(dim_prev, z_dim)
+
 
     def forward(self, x):
         """
@@ -49,9 +64,12 @@ class MLPEncoder(nn.Module):
         """
 
         # Remark: Make sure to understand why we are predicting the log_std and not std
-        mean = None
-        log_std = None
-        raise NotImplementedError
+
+        hidden = self.q.forward(x)
+
+        mean = self.fm.forward(hidden)
+        log_std = self.fs.forward(hidden)
+
         return mean, log_std
 
 
@@ -73,7 +91,21 @@ class MLPDecoder(nn.Module):
         # For an intial architecture, you can use a sequence of linear layers and ReLU activations.
         # Feel free to experiment with the architecture yourself, but the one specified here is 
         # sufficient for the assignment.
-        raise NotImplementedError
+
+        output_dim = np.prod(output_shape)
+
+        layers = []
+
+        dim_prev = z_dim
+        for dim_current in hidden_dims:
+            layers.append(nn.Linear(dim_prev, dim_current))
+            layers.append(nn.ReLU())
+            dim_prev = dim_current
+
+        layers.append(nn.Linear(dim_prev, output_dim))
+
+        self.p = nn.Sequential(*layers)
+
 
     def forward(self, z):
         """
@@ -85,8 +117,8 @@ class MLPDecoder(nn.Module):
                 Shape: [B,output_shape[0],output_shape[1],output_shape[2]]
         """
 
-        x = None
-        raise NotImplementedError
+        x = self.p.forward(z).view(-1, *self.output_shape)
+
         return x
 
     @property
