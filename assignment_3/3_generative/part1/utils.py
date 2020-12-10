@@ -19,6 +19,8 @@ from torchvision.utils import make_grid
 import numpy as np
 from scipy.stats import norm
 
+e = np.e
+
 
 def sample_reparameterize(mean, std):
     """
@@ -32,8 +34,11 @@ def sample_reparameterize(mean, std):
             The tensor should have the same shape as the mean and std input tensors.
     """
 
-    z = None
-    raise NotImplementedError
+    unit_mean = torch.zeros_like(mean)
+    unit_std = torch.ones_like(std)
+
+    z = mean + std * torch.normal(unit_mean, unit_std)
+
     return z
 
 
@@ -49,8 +54,11 @@ def KLD(mean, log_std):
               The values represent the Kullback-Leibler divergence to unit Gaussians.
     """
 
-    KLD = None
-    raise NotImplementedError
+    log_var = 2 * log_std
+    var = e**log_var
+
+    KLD = ((var + mean**2 - 1 - log_var) / 2).sum(-1)
+
     return KLD
 
 
@@ -63,8 +71,11 @@ def elbo_to_bpd(elbo, img_shape):
     Outputs:
         bpd - The negative log likelihood in bits per dimension for the given image.
     """
-    bpd = None
-    raise NotImplementedError
+
+    dims = np.prod(img_shape[1:])
+
+    bpd = elbo * np.log2(e) / dims
+
     return bpd
 
 
