@@ -30,6 +30,8 @@ from mlp_encoder_decoder import MLPEncoder, MLPDecoder
 from cnn_encoder_decoder import CNNEncoder, CNNDecoder
 from utils import *
 
+from numpy import e
+
 
 class VAE(pl.LightningModule):
 
@@ -53,6 +55,7 @@ class VAE(pl.LightningModule):
             self.encoder = CNNEncoder(z_dim=z_dim, num_filters=num_filters)
             self.decoder = CNNDecoder(z_dim=z_dim, num_filters=num_filters)
 
+
     def forward(self, imgs):
         """
         The forward function calculates the VAE-loss for a given batch of images.
@@ -65,11 +68,18 @@ class VAE(pl.LightningModule):
                   This is also the loss we train on. Shape: single scalar
         """
 
-        L_rec = None
-        L_reg = None
-        bpd = None
-        raise NotImplementedError
+        mean, log_std = self.encoder(imgs)
+        z = sample_reparameterize(mean, e**log_std)
+        gens = self.decoder(z)
+
+        L_rec = F.binary_cross_entropy_with_logits(gens.flatten(1), imgs.flatten(1), reduction='none').sum(-1).mean()
+        L_reg = KLD(mean, log_std).mean()
+
+        elbo = L_rec + L_reg
+        bpd = elbo_to_bpd(elbo, imgs.shape)
+
         return L_rec, L_reg, bpd
+
 
     @torch.no_grad()
     def sample(self, batch_size):
@@ -83,15 +93,21 @@ class VAE(pl.LightningModule):
                      between 0 and 1 from which we obtain "x_samples".
                      Shape: [B,C,H,W]
         """
-        x_mean = None
-        x_samples = None
-        raise NotImplementedError
+
+        unit_mean = torch.zeros(batch_size, self.hparams.z_dim)
+        z = torch.normal(unit_mean)
+
+        x_mean = torch.sigmoid(self.decoder(z))
+        x_samples = x_mean.round()
+
         return x_samples, x_mean
+
 
     def configure_optimizers(self):
         # Create optimizer
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
         return optimizer
+
 
     def training_step(self, batch, batch_idx):
         # Make use of the forward function, and add logging statements
@@ -103,6 +119,7 @@ class VAE(pl.LightningModule):
 
         return bpd
 
+
     def validation_step(self, batch, batch_idx):
         # Make use of the forward function, and add logging statements
         L_rec, L_reg, bpd = self.forward(batch[0])
@@ -110,6 +127,7 @@ class VAE(pl.LightningModule):
         self.log("val_regularization_loss", L_reg)
         self.log("val_ELBO", L_rec + L_reg)
         self.log("val_bpd", bpd)
+
 
     def test_step(self, batch, batch_idx):
         # Make use of the forward function, and add logging statements
@@ -131,6 +149,7 @@ class GenerateCallback(pl.Callback):
         self.every_n_epochs = every_n_epochs
         self.save_to_disk = save_to_disk
 
+
     def on_epoch_end(self, trainer, pl_module):
         """
         This function is called after every epoch.
@@ -138,6 +157,7 @@ class GenerateCallback(pl.Callback):
         """
         if (trainer.current_epoch+1) % self.every_n_epochs == 0:
             self.sample_and_save(trainer, pl_module, trainer.current_epoch+1)
+
 
     def sample_and_save(self, trainer, pl_module, epoch):
         """
@@ -149,13 +169,32 @@ class GenerateCallback(pl.Callback):
             pl_module - The VAE model that is currently being trained.
             epoch - The epoch number to use for TensorBoard logging and saving of the files.
         """
+
         # Hints:
         # - You can access the logging directory path via trainer.logger.log_dir, and
         # - You can access the tensorboard logger via trainer.logger.experiment
         # - Use the torchvision function "make_grid" to create a grid of multiple images
         # - Use the torchvision function "save_image" to save an image grid to disk
 
-        raise NotImplementedError
+        sample_imgs, mean_imgs = pl_module.sample(self.batch_size)
+
+        sample_grid = make_grid(sample_imgs)
+        mean_grid = make_grid(mean_imgs)
+
+        trainer.logger.experiment.add_image("Sample images", sample_grid, epoch)
+        trainer.logger.experiment.add_image("Mean images", mean_grid, epoch)
+
+        if self.save_to_disk:
+            save_image(
+                sample_grid.type(torch.float),
+                os.path.join(trainer.logger.log_dir, f"sample_grid_e{epoch}.png"),
+                normalize=False
+            )
+            save_image(
+                mean_grid,
+                os.path.join(trainer.logger.log_dir, f"mean_grid_e{epoch}.png"),
+                normalize=False
+            )
 
 
 def train_vae(args):

@@ -19,7 +19,7 @@ from torchvision.utils import make_grid
 import numpy as np
 from scipy.stats import norm
 
-e = np.e
+from numpy import e
 
 
 def sample_reparameterize(mean, std):
@@ -35,9 +35,8 @@ def sample_reparameterize(mean, std):
     """
 
     unit_mean = torch.zeros_like(mean)
-    unit_std = torch.ones_like(std)
 
-    z = mean + std * torch.normal(unit_mean, unit_std)
+    z = mean + std * torch.normal(unit_mean)
 
     return z
 
