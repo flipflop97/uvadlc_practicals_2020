@@ -35,10 +35,29 @@ class GeneratorMLP(nn.Module):
             dp_rate - Dropout probability to apply after every linear layer except the output.
         """
         super().__init__()
+
         # You are allowed to experiment with the architecture and change the activation function, normalization, etc.
         # However, the default setup is sufficient to generate fine images and gain full points in the assignment.
         # The default setup is a sequence of Linear, Dropout, LeakyReLU (alpha=0.2)
-        raise NotImplementedError
+        
+        self.output_shape = output_shape
+
+        output_dim = np.prod(output_shape)
+
+        layers = []
+
+        dim_prev = z_dim
+        for dim_current in hidden_dims:
+            layers.append(nn.Linear(dim_prev, dim_current))
+            layers.append(nn.Dropout(dp_rate))
+            layers.append(nn.LeakyReLU(0.2))
+            dim_prev = dim_current
+
+        layers.append(nn.Linear(dim_prev, output_dim))
+        layers.append(nn.Tanh())
+
+        self.model = nn.Sequential(*layers)
+
 
     def forward(self, z):
         """
@@ -47,8 +66,9 @@ class GeneratorMLP(nn.Module):
         Outputs:
             x - Generated image of shape [B,output_shape[0],output_shape[1],output_shape[2]]
         """
-        x = None
-        raise NotImplementedError
+
+        x = self.model.forward(z).view(-1, *self.output_shape)
+
         return x
 
     @property
@@ -72,10 +92,24 @@ class DiscriminatorMLP(nn.Module):
             dp_rate - Dropout probability to apply after every linear layer except the output.
         """
         super().__init__()
+
         # You are allowed to experiment with the architecture and change the activation function, normalization, etc.
         # However, the default setup is sufficient to generate fine images and gain full points in the assignment.
         # The default setup is the same as the generator: a sequence of Linear, Dropout, LeakyReLU (alpha=0.2)
-        raise NotImplementedError
+
+        layers = [nn.Flatten()]
+
+        dim_prev = input_dims
+        for dim_current in hidden_dims:
+            layers.append(nn.Linear(dim_prev, dim_current))
+            layers.append(nn.Dropout(dp_rate))
+            layers.append(nn.LeakyReLU(0.2))
+            dim_prev = dim_current
+
+        layers.append(nn.Linear(dim_prev, 1))
+
+        self.model = nn.Sequential(*layers)
+
 
     def forward(self, x):
         """
@@ -86,6 +120,7 @@ class DiscriminatorMLP(nn.Module):
                     Note that this should be a logit output *without* a sigmoid applied on it.
                     Shape: [B,1]
         """
-        preds = None
-        raise NotImplementedError
+
+        preds = self.model.forward(x)
+
         return preds
