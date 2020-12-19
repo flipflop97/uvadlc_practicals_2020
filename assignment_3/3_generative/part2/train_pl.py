@@ -47,14 +47,19 @@ class GAN(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.generator = GeneratorMLP(z_dim=z_dim,
-                                         hidden_dims=hidden_dims_gen,
-                                         dp_rate=dp_rate_gen)
-        self.discriminator = DiscriminatorMLP(hidden_dims=hidden_dims_disc,
-                                                 dp_rate=dp_rate_disc)
+        self.generator = GeneratorMLP(
+            z_dim=z_dim,
+            hidden_dims=hidden_dims_gen,
+            dp_rate=dp_rate_gen
+        )
+        self.discriminator = DiscriminatorMLP(
+            hidden_dims=hidden_dims_disc,
+            dp_rate=dp_rate_disc
+        )
+
 
     @torch.no_grad()
-    def sample(self, batch_size):
+    def sample(self, batch_size:int):
         """
         Function for sampling a new batch of random images from the generator.
 
@@ -63,12 +68,17 @@ class GAN(pl.LightningModule):
         Outputs:
             x - Generated images of shape [B,C,H,W]
         """
-        x = None
-        raise NotImplementedError
+
+        unit_mean = torch.zeros(batch_size, self.hparams.z_dim)
+        z = torch.normal(unit_mean)
+
+        x = self.generator(z)
+
         return x
 
+
     @torch.no_grad()
-    def interpolate(self, batch_size, interpolation_steps):
+    def interpolate(self, batch_size:int, interpolation_steps:int):
         """
         Function for interpolating between a batch of pairs of randomly sampled
         images. The interpolation is performed on the latent input space of the
@@ -82,18 +92,31 @@ class GAN(pl.LightningModule):
             x - Generated images of shape [B,interpolation_steps+2,C,H,W]
         """
 
-        x = None
-        raise NotImplementedError
+        unit_mean = torch.zeros(batch_size, self.hparams.z_dim)
+        z_start = torch.normal(unit_mean)
+        z_end = torch.normal(unit_mean)
+        z_steps = torch.linspace(0, 1, interpolation_steps + 2)
+
+        x_list = []
+        for z_step in z_steps:
+            z_i = torch.lerp(z_start, z_end, z_step)
+            x_i = self.generator(z_i)
+            x_list.append(x_i)
+
+        x = torch.stack(x_list, 1)
+
         return x
+
 
     def configure_optimizers(self):
         # Create optimizer for both generator and discriminator.
         # You can use the Adam optimizer for both models.
         # It is recommended to reduce the momentum (beta1) to e.g. 0.5
-        optimizer_gen = None
-        optimizer_disc = None
-        raise NotImplementedError
+        optimizer_gen = torch.optim.Adam(self.generator.parameters(), lr=self.hparams.lr, betas=(0.5, 0.999))
+        optimizer_disc = torch.optim.Adam(self.discriminator.parameters(), lr=self.hparams.lr, betas=(0.5, 0.999))
+
         return [optimizer_gen, optimizer_disc], []
+
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         """
@@ -122,6 +145,7 @@ class GAN(pl.LightningModule):
 
         return loss
 
+
     def generator_step(self, x_real):
         """
         Training step for the generator. Note that you do *not* need to take
@@ -137,11 +161,19 @@ class GAN(pl.LightningModule):
             loss - The loss for the generator to optimize
         """
 
-        loss = None
-        self.log("generator/loss", loss)
-        raise NotImplementedError
+        batch_size = x_real.shape[0]
+
+        unit_mean = torch.zeros(batch_size, self.hparams.z_dim)
+        z_fake = torch.normal(unit_mean)
+        x_fake = self.generator(z_fake)
+        y_fake = self.discriminator(x_fake)
+        t_real = torch.zeros_like(y_fake)
+
+        loss = F.binary_cross_entropy_with_logits(y_fake, t_real)
+        self.log("Generator/Loss", loss)
 
         return loss
+
 
     def discriminator_step(self, x_real):
         """
@@ -159,9 +191,27 @@ class GAN(pl.LightningModule):
 
         # Remark: there are more metrics that you can add. 
         # For instance, how about the accuracy of the discriminator?
-        loss = None
-        self.log("generator/loss", loss)
-        raise NotImplementedError
+
+        batch_size = x_real.shape[0]
+
+        unit_mean = torch.zeros(batch_size, self.hparams.z_dim)
+        z_fake = torch.normal(unit_mean)
+        x_fake = self.generator(z_fake)
+        y_fake = self.discriminator(x_fake)
+        t_fake = torch.ones_like(y_fake)
+        loss_fake = F.binary_cross_entropy_with_logits(y_fake, t_fake)
+        acc_fake = torch.sigmoid(y_fake).round().mean()
+
+        y_real = self.discriminator(x_real)
+        t_real = torch.zeros_like(y_real)
+        loss_real = F.binary_cross_entropy_with_logits(y_real, t_real)
+        acc_real = torch.sigmoid(-y_real).round().mean()
+
+        loss = (loss_fake + loss_real) / 2
+        self.log("Discriminator/Loss", loss)
+
+        acc = (acc_fake + acc_real) / 2
+        self.log("Discriminator/Accuracy", acc)
 
         return loss
 
@@ -184,6 +234,7 @@ class GenerateCallback(pl.Callback):
         self.every_n_epochs = every_n_epochs
         self.save_to_disk = save_to_disk
 
+
     def on_epoch_end(self, trainer, pl_module):
         """
         This function is called after every epoch.
@@ -191,6 +242,7 @@ class GenerateCallback(pl.Callback):
         """
         if (trainer.current_epoch+1) % self.every_n_epochs == 0:
             self.sample_and_save(trainer, pl_module, trainer.current_epoch+1)
+
 
     def sample_and_save(self, trainer, pl_module, epoch):
         """
@@ -209,7 +261,18 @@ class GenerateCallback(pl.Callback):
         # - Use torchvision function "make_grid" to create a grid of multiple images
         # - Use torchvision function "save_image" to save an image grid to disk
 
-        raise NotImplementedError
+        gen_imgs = pl_module.sample(self.batch_size)
+
+        gen_grid = make_grid(gen_imgs)
+
+        trainer.logger.experiment.add_image("Generated images", gen_grid, epoch)
+
+        if self.save_to_disk:
+            save_image(
+                gen_grid,
+                os.path.join(trainer.logger.log_dir, f"gen_grid_e{epoch}.png"),
+                normalize=False
+            )
 
 
 class InterpolationCallback(pl.Callback):
@@ -234,6 +297,7 @@ class InterpolationCallback(pl.Callback):
         self.every_n_epochs = every_n_epochs
         self.save_to_disk = save_to_disk
 
+
     def on_epoch_end(self, trainer, pl_module):
         """
         This function is called after every epoch.
@@ -242,7 +306,8 @@ class InterpolationCallback(pl.Callback):
         if (trainer.current_epoch+1) % self.every_n_epochs == 0:
             self.sample_and_save(trainer, pl_module, trainer.current_epoch+1)
 
-    def sample_and_save(self, trainer, pl_module, epoch):
+
+    def sample_and_save(self, trainer, pl_module:GAN, epoch:int):
         """
         Function that generates and save the interpolations from the GAN.
         The generated samples and mean images should be added to TensorBoard and,
@@ -259,10 +324,23 @@ class InterpolationCallback(pl.Callback):
         # - Use the torchvision function "make_grid" to create a grid of multiple images
         # - Use the torchvision function "save_image" to save an image grid to disk
 
-        # You also have to implement this function in a later question of the assignemnt. 
-        # By default it is skipped to allow you to test your other code so far. 
-        print("WARNING: Interpolation function has not been implemented yet.")
-        pass
+        # You also have to implement this function in a later question of the assignemnt.
+        # By default it is skipped to allow you to test your other code so far.
+
+        gen_imgs = pl_module.interpolate(self.batch_size, self.interpolation_steps)
+        gen_imgs = gen_imgs.view(-1, *gen_imgs.shape[-3:])
+
+        rows = self.interpolation_steps + 2
+        gen_grid = make_grid(gen_imgs, nrow=rows)
+
+        trainer.logger.experiment.add_image("Interpolated images", gen_grid, epoch)
+
+        if self.save_to_disk:
+            save_image(
+                gen_grid,
+                os.path.join(trainer.logger.log_dir, f"int_grid_e{epoch}.png"),
+                normalize=False
+            )
 
 
 def train_gan(args):
